@@ -1,0 +1,19 @@
+services:
+  pure-note:
+    build: .
+    image: pure-note:latest
+    container_name: pure-note
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/data
+      - APP_PASSWORD=${APP_PASSWORD:-}
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

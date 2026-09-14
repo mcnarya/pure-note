@@ -1,0 +1,79 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write # Required for pushing to GHCR
+      security-events: write # Required for SARIF upload if needed
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine next release version
+        id: version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let nextVersion = 1;
+
+            try {
+              const release = await github.rest.repos.getLatestRelease({ owner, repo });
+              const tag = release.data.tag_name || "";
+              const match = tag.match(/^v(\d+)$/);
+
+              if (match) {
+                nextVersion = parseInt(match[1], 10) + 1;
+              }
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            core.setOutput('release_number', String(nextVersion));
+            core.setOutput('release_tag', `v${nextVersion}`);
+
+      - name: Log in to the Container registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build local container image for vulnerability scan
+        run: |
+          docker build -t pure-note:scan .
+
+      - name: Run Trivy vulnerability scanner
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --format table \
+            --exit-code 0 \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            --severity CRITICAL,HIGH \
+            pure-note:scan
+
+      - name: Tag and push release image
+        run: |
+          docker tag pure-note:scan "ghcr.io/${{ github.repository }}:latest"
+          docker tag pure-note:scan "ghcr.io/${{ github.repository }}:${{ steps.version.outputs.release_tag }}"
+          docker push "ghcr.io/${{ github.repository }}:latest"
+          docker push "ghcr.io/${{ github.repository }}:${{ steps.version.outputs.release_tag }}"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.release_tag }}" \
+            --title "Release ${{ steps.version.outputs.release_number }}" \
+            --generate-notes

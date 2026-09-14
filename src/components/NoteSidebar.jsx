@@ -11,6 +11,8 @@ import {
   Hash
 } from 'lucide-react';
 
+import SuiteMenu from './SuiteMenu';
+
 export default function NoteSidebar({
   notes,
   activeNoteId,
@@ -60,6 +62,7 @@ export default function NoteSidebar({
         </div>
 
         <div className="flex items-center gap-1">
+          <SuiteMenu />
           <button
             type="button"
             onClick={onNewNote}

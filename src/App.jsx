@@ -18,7 +18,7 @@ export default function App() {
 
   // Auth
   const [authRequired, setAuthRequired] = useState(false);
-  const [authenticated, setAuthenticated] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
@@ -126,11 +126,15 @@ export default function App() {
   }, [apiBase, getHeaders]);
 
   useEffect(() => {
-    checkAuth().then(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  useEffect(() => {
+    if (authenticated) {
       fetchNotes();
       fetchScratchpad();
-    });
-  }, [checkAuth, fetchNotes, fetchScratchpad]);
+    }
+  }, [authenticated, fetchNotes, fetchScratchpad]);
 
   // All distinct tags
   const allTags = useMemo(() => {

@@ -36,6 +36,15 @@ export default function NoteEditor({
   const textareaRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
 
+  // Word count and reading time metrics
+  const stats = useMemo(() => {
+    const text = (content || '').trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    const chars = text.length;
+    const readingTime = Math.max(1, Math.ceil(words / 200));
+    return { words, chars, readingTime };
+  }, [content]);
+
   // Sync state when active note changes
   useEffect(() => {
     if (isScratchpad) {
@@ -337,6 +346,11 @@ export default function NoteEditor({
               <Eye size={13} />
               <span className="hidden md:inline">Read</span>
             </button>
+          </div>
+
+          {/* Word & Reading Metrics */}
+          <div className="hidden sm:flex items-center text-[11px] font-medium text-[var(--md-sys-color-on-surface-variant)] px-2 py-1 rounded-md bg-[var(--md-sys-color-surface-container-high)]">
+            <span>{stats.words} words • {stats.readingTime} min read</span>
           </div>
 
           {/* Quick Copy & Download */}

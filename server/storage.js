@@ -70,23 +70,35 @@ Happy note-taking!
   }
 }
 
+let memoryNotesMeta = null;
+let seeded = false;
+
 // Read metadata list
 export async function readNotesMetadata() {
+  if (memoryNotesMeta !== null) {
+    return memoryNotesMeta;
+  }
   ensureDirs();
-  await seedInitialData();
+  if (!seeded) {
+    await seedInitialData();
+    seeded = true;
+  }
   try {
     const raw = await fsPromises.readFile(METADATA_FILE, 'utf8');
-    return JSON.parse(raw);
+    memoryNotesMeta = JSON.parse(raw);
+    return memoryNotesMeta;
   } catch (err) {
     console.error('[pure-note] Error reading metadata:', err);
-    return [];
+    memoryNotesMeta = [];
+    return memoryNotesMeta;
   }
 }
 
 // Write metadata list safely
 async function writeNotesMetadata(notes) {
+  memoryNotesMeta = notes;
   ensureDirs();
-  const tempFile = `${METADATA_FILE}.tmp-${Date.now()}`;
+  const tempFile = `${METADATA_FILE}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   await fsPromises.writeFile(tempFile, JSON.stringify(notes, null, 2), 'utf8');
   await fsPromises.rename(tempFile, METADATA_FILE);
 }

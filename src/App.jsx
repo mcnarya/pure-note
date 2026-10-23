@@ -55,7 +55,7 @@ export default function App() {
 
   const getHeaders = useCallback(() => {
     const headers = { 'Content-Type': 'application/json' };
-    const token = sessionStorage.getItem('pure_note_token');
+    const token = sessionStorage.getItem('pure_note_token') || localStorage.getItem('pure_suite_token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }, []);
@@ -67,13 +67,16 @@ export default function App() {
       const data = await res.json();
       setAuthRequired(Boolean(data.authRequired));
       if (data.authRequired) {
-        const savedToken = sessionStorage.getItem('pure_note_token');
+        const savedToken = sessionStorage.getItem('pure_note_token') || localStorage.getItem('pure_suite_token');
         if (savedToken) {
           const verifyRes = await fetch(`${apiBase}/auth/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: savedToken })
           });
+          if (verifyRes.ok) {
+            sessionStorage.setItem('pure_note_token', savedToken);
+          }
           setAuthenticated(verifyRes.ok);
         } else {
           setAuthenticated(false);
@@ -148,7 +151,7 @@ export default function App() {
   }, [notes]);
 
   // Select a note
-  const handleSelectNote = async (id) => {
+  const handleSelectNote = useCallback(async (id) => {
     try {
       setIsScratchpad(false);
       const res = await fetch(`${apiBase}/notes/${id}`, { headers: getHeaders() });
@@ -159,7 +162,23 @@ export default function App() {
     } catch (err) {
       console.error('[pure-note] Failed to load note:', err);
     }
-  };
+  }, [apiBase, getHeaders]);
+
+  // Listen for OPEN_NOTE & PURE_HUB_AUTH_TOKEN from Pure Hub Spotlight
+  useEffect(() => {
+    const handleHubMessages = (event) => {
+      if (event.data?.type === 'PURE_HUB_AUTH_TOKEN' && typeof event.data.token === 'string' && event.data.token) {
+        sessionStorage.setItem('pure_note_token', event.data.token);
+        localStorage.setItem('pure_suite_token', event.data.token);
+        setAuthenticated(true);
+      }
+      if (event.data?.type === 'OPEN_NOTE' && event.data.id) {
+        handleSelectNote(event.data.id);
+      }
+    };
+    window.addEventListener('message', handleHubMessages);
+    return () => window.removeEventListener('message', handleHubMessages);
+  }, [handleSelectNote]);
 
   // Select scratchpad
   const handleSelectScratchpad = () => {
@@ -274,6 +293,10 @@ export default function App() {
       });
       if (res.ok) {
         sessionStorage.setItem('pure_note_token', password);
+        localStorage.setItem('pure_suite_token', password);
+        try {
+          window.parent?.postMessage({ type: 'PURE_HUB_AUTH_TOKEN', token: password }, '*');
+        } catch {}
         setAuthenticated(true);
         fetchNotes();
         fetchScratchpad();
